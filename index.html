@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Used Car Advisor Bot</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #f0f0f0;
+        }
+        .neubrutalism {
+            border: 3px solid #000;
+            box-shadow: 5px 5px 0px #000;
+            transition: all 0.2s ease;
+        }
+        .neubrutalism:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 7px 7px 0px #000;
+        }
+        .chat-container {
+            height: 60vh;
+            overflow-y: auto;
+        }
+        .loading-dots::after {
+            content: '...';
+            animation: dots 1.5s infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="min-h-screen p-4 md:p-8">
+        <div class="max-w-4xl mx-auto">
+            <h1 class="text-4xl font-bold mb-8 neubrutalism bg-yellow-300 p-4 text-center">
+                Used Car Advisor Bot 🚗
+            </h1>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Chat Interface -->
+                <div class="neubrutalism bg-white p-4">
+                    <div class="chat-container mb-4 p-4" ref="chatContainer">
+                        <div v-for="(message, index) in chatMessages" :key="index" 
+                             :class="message.type === 'bot' ? 'bg-blue-100 ml-4' : 'bg-green-100 mr-4'" 
+                             class="p-3 rounded-lg mb-3 neubrutalism">
+                            <p>{{ message.text }}</p>
+                        </div>
+                        <div v-if="isLoading" class="bg-gray-100 p-3 rounded-lg mb-3">
+                            <p class="loading-dots">Thinking</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" v-model="userInput" @keyup.enter="sendMessage"
+                               class="flex-1 p-2 neubrutalism" 
+                               placeholder="Type your message...">
+                        <button @click="sendMessage" 
+                                class="neubrutalism bg-green-400 px-4 py-2">
+                            Send
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Results Display -->
+                <div class="neubrutalism bg-white p-4">
+                    <h2 class="text-2xl font-bold mb-4">Recommended Cars</h2>
+                    <div v-if="recommendations.length === 0" class="text-center p-4">
+                        Chat with the bot to get car recommendations!
+                    </div>
+                    <div v-else class="space-y-4">
+                        <div v-for="(car, index) in recommendations" 
+                             :key="index"
+                             class="neubrutalism bg-orange-100 p-4">
+                            <h3 class="font-bold">{{ car.name }}</h3>
+                            <p>Price: {{ car.price }}</p>
+                            <p>Year: {{ car.year }}</p>
+                            <p>Mileage: {{ car.mileage }}</p>
+                            <a :href="car.link" target="_blank" 
+                               class="neubrutalism bg-blue-400 px-3 py-1 inline-block mt-2">
+                                View Details
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue
+
+        createApp({
+            data() {
+                return {
+                    chatMessages: [],
+                    userInput: '',
+                    isLoading: false,
+                    recommendations: [],
+                    currentStep: 0,
+                    userPreferences: {},
+                    questions: [
+                        "What's your budget range for the used car?",
+                        "Which car brands do you prefer?",
+                        "What's the maximum age of the car you're looking for?",
+                        "What's the maximum mileage you're comfortable with?",
+                        "Do you have any specific features in mind (like automatic transmission, sunroof, etc.)?"
+                    ]
+                }
+            },
+            mounted() {
+                this.addBotMessage("Hello! I'm your Used Car Advisor. I'll help you find the perfect used car. " + this.questions[0]);
+            },
+            methods: {
+                async sendMessage() {
+                    if (!this.userInput.trim()) return;
+                    
+                    // Add user message to chat
+                    this.addUserMessage(this.userInput);
+                    const userResponse = this.userInput;
+                    this.userInput = '';
+
+                    this.isLoading = true;
+
+                    // Store user's answer
+                    switch(this.currentStep) {
+                        case 0:
+                            this.userPreferences.budget = userResponse;
+                            break;
+                        case 1:
+                            this.userPreferences.brands = userResponse;
+                            break;
+                        case 2:
+                            this.userPreferences.maxAge = userResponse;
+                            break;
+                        case 3:
+                            this.userPreferences.maxMileage = userResponse;
+                            break;
+                        case 4:
+                            this.userPreferences.features = userResponse;
+                            break;
+                    }
+
+                    // Simulate API call delay
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                    if (this.currentStep < this.questions.length - 1) {
+                        this.currentStep++;
+                        this.addBotMessage(this.questions[this.currentStep]);
+                    } else if (this.currentStep === this.questions.length - 1) {
+                        this.addBotMessage("Thank you for providing all the information! Let me search for some recommendations...");
+                        await this.generateRecommendations();
+                    } else {
+                        this.addBotMessage("Is there anything else you'd like to know about the recommended cars?");
+                    }
+
+                    this.isLoading = false;
+                    this.$nextTick(() => {
+                        this.scrollToBottom();
+                    });
+                },
+                addUserMessage(text) {
+                    this.chatMessages.push({ type: 'user', text });
+                },
+                addBotMessage(text) {
+                    this.chatMessages.push({ type: 'bot', text });
+                },
+                scrollToBottom() {
+                    const container = this.$refs.chatContainer;
+                    container.scrollTop = container.scrollHeight;
+                },
+                async generateRecommendations() {
+                    // Simulate API call to get car recommendations
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    
+                    // Sample recommendations based on user preferences
+                    this.recommendations = [
+                        {
+                            name: "2019 Toyota Camry",
+                            price: "$18,500",
+                            year: 2019,
+                            mileage: "45,000 miles",
+                            link: "#"
+                        },
+                        {
+                            name: "2018 Honda Accord",
+                            price: "$17,900",
+                            year: 2018,
+                            mileage: "52,000 miles",
+                            link: "#"
+                        },
+                        {
+                            name: "2020 Hyundai Sonata",
+                            price: "$19,500",
+                            year: 2020,
+                            mileage: "35,000 miles",
+                            link: "#"
+                        }
+                    ];
+
+                    this.addBotMessage("I've found some cars that match your criteria! Check out the recommendations panel.");
+                }
+            }
+        }).mount('#app')
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
